@@ -3,16 +3,6 @@ var secp256k1 = require('secp256k1')
 var varuint = require('varuint-bitcoin')
 const { getAllPossibleAddressesFromPubKey } = require('coinid-address-functions');
 
-function sha256 (b) {
-  return createHash('sha256').update(b).digest()
-}
-function hash256 (buffer) {
-  return sha256(sha256(buffer))
-}
-function hash160 (buffer) {
-  return createHash('ripemd160').update(sha256(buffer)).digest()
-}
-
 function encodeSignature (signature, recovery, compressed) {
   if (compressed) recovery += 4
   return Buffer.concat([Buffer.alloc(1, recovery + 27), signature])
@@ -31,8 +21,8 @@ function decodeSignature (buffer) {
   }
 }
 
-function magicHash (message, messagePrefix) {
-  messagePrefix = messagePrefix || '\u0018Bitcoin Signed Message:\n'
+function magicHash (message, network) {
+  messagePrefix = network.messagePrefix || '\u0018Bitcoin Signed Message:\n'
   if (!Buffer.isBuffer(messagePrefix)) messagePrefix = Buffer.from(messagePrefix, 'utf8')
 
   var messageVISize = varuint.encodingLength(message.length)
@@ -40,11 +30,11 @@ function magicHash (message, messagePrefix) {
   messagePrefix.copy(buffer, 0)
   varuint.encode(message.length, buffer, messagePrefix.length)
   buffer.write(message, messagePrefix.length + messageVISize)
-  return hash256(buffer)
+  return network.hashFunctions.message(buffer)
 }
 
-function sign (message, privateKey, compressed, messagePrefix) {
-  var hash = magicHash(message, messagePrefix)
+function sign (message, privateKey, compressed, network) {
+  var hash = magicHash(message, network)
   var sigObj = secp256k1.sign(hash, privateKey)
   return encodeSignature(sigObj.signature, sigObj.recovery, compressed)
 }
@@ -53,7 +43,7 @@ function verify (message, address, signature, network) {
   if (!Buffer.isBuffer(signature)) signature = Buffer.from(signature, 'base64')
 
   var parsed = decodeSignature(signature)
-  var hash = magicHash(message, network.messagePrefix)
+  var hash = magicHash(message, network)
   var pubKey = secp256k1.recover(hash, parsed.signature, parsed.recovery, parsed.compressed)
 
   const expectedAddressArr = getAllPossibleAddressesFromPubKey(pubKey, network);
