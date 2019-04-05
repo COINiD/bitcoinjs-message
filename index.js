@@ -1,7 +1,7 @@
-var createHash = require('create-hash')
 var secp256k1 = require('secp256k1')
 var varuint = require('varuint-bitcoin')
-const { getAllPossibleAddressesFromPubKey } = require('coinid-address-functions');
+var bitcoin = require('bitcoinjs-lib')
+var bufferEquals = require('buffer-equals')
 
 function encodeSignature (signature, recovery, compressed) {
   if (compressed) recovery += 4
@@ -22,7 +22,7 @@ function decodeSignature (buffer) {
 }
 
 function magicHash (message, network) {
-  messagePrefix = network.messagePrefix || '\u0018Bitcoin Signed Message:\n'
+  var messagePrefix = network.messagePrefix || '\u0018Bitcoin Signed Message:\n'
   if (!Buffer.isBuffer(messagePrefix)) messagePrefix = Buffer.from(messagePrefix, 'utf8')
 
   var messageVISize = varuint.encodingLength(message.length)
@@ -39,15 +39,53 @@ function sign (message, privateKey, compressed, network) {
   return encodeSignature(sigObj.signature, sigObj.recovery, compressed)
 }
 
+function doesPubKeyBelongToAddress (pubKey, address, network) {
+  const getForPubKeyHash = () => bitcoin.crypto.hash160(pubKey)
+  const getForScriptHash = () => bitcoin.crypto.hash160(bitcoin.script.witnessPubKeyHash.output.encode(bitcoin.crypto.hash160(pubKey)))
+
+  let decode
+  try {
+    decode = bitcoin.address.fromBase58Check(address, network)
+  } catch (e) {}
+
+  if (decode) {
+    if (decode.version === network.pubKeyHash) {
+      return bufferEquals(getForPubKeyHash(), decode.hash)
+    }
+    if (decode.version === network.scriptHash) {
+      return bufferEquals(getForScriptHash(), decode.hash)
+    }
+  }
+
+  try {
+    decode = bitcoin.address.fromBech32(address)
+  } catch (e) {}
+
+  if (decode) {
+    if (decode.prefix !== network.bech32) throw new Error(address + ' has an invalid prefix')
+
+    if (decode.version === 0) {
+      if (decode.data.length === 20) {
+        return bufferEquals(getForPubKeyHash(), decode.data)
+      }
+      if (decode.data.length === 32) {
+        return bufferEquals(getForScriptHash(), decode.data)
+      }
+    }
+  }
+
+  throw new Error(address + ' could not be decoded')
+}
+
 function verify (message, address, signature, network) {
+  if (network === undefined) network = bitcoin.networks.bitcoin
   if (!Buffer.isBuffer(signature)) signature = Buffer.from(signature, 'base64')
 
   var parsed = decodeSignature(signature)
   var hash = magicHash(message, network)
   var pubKey = secp256k1.recover(hash, parsed.signature, parsed.recovery, parsed.compressed)
 
-  const expectedAddressArr = getAllPossibleAddressesFromPubKey(pubKey, network);
-  return expectedAddressArr.indexOf(address) !== -1
+  return doesPubKeyBelongToAddress(pubKey, address, network)
 }
 
 module.exports = {
