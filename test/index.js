@@ -5,13 +5,13 @@ var message = require('../')
 
 var fixtures = require('./fixtures.json')
 
-function getMessagePrefix (networkName) {
-  return fixtures.networks[networkName]
+function getNetworkObject (networkName) {
+  return bitcoin.networks[networkName]
 }
 
 fixtures.valid.magicHash.forEach(function (f) {
   test('produces the magicHash for "' + f.message + '" (' + f.network + ')', function (t) {
-    var actual = message.magicHash(f.message, getMessagePrefix(f.network))
+    var actual = message.magicHash(f.message, getNetworkObject(f.network))
     t.same(actual.toString('hex'), f.magicHash)
     t.end()
   })
@@ -20,11 +20,11 @@ fixtures.valid.magicHash.forEach(function (f) {
 fixtures.valid.sign.forEach(function (f) {
   test('sign: ' + f.description, function (t) {
     var pk = new bitcoin.ECPair(new BigInteger(f.d)).d.toBuffer(32)
-    var signature = message.sign(f.message, pk, false, getMessagePrefix(f.network))
+    var signature = message.sign(f.message, pk, false, getNetworkObject(f.network))
     t.same(signature.toString('base64'), f.signature)
 
     if (f.compressed) {
-      signature = message.sign(f.message, pk, true, getMessagePrefix(f.network))
+      signature = message.sign(f.message, pk, true, getNetworkObject(f.network))
       t.same(signature.toString('base64'), f.compressed.signature)
     }
 
@@ -34,7 +34,7 @@ fixtures.valid.sign.forEach(function (f) {
 
 fixtures.valid.verify.forEach(function (f) {
   test('verifies a valid signature for "' + f.message + '" (' + f.network + ')', function (t) {
-    t.true(message.verify(f.message, f.address, f.signature, getMessagePrefix(f.network)))
+    t.true(message.verify(f.message, f.address, f.signature, getNetworkObject(f.network)))
 
     if (f.network === 'bitcoin') {
       // defaults to bitcoin network
@@ -42,7 +42,7 @@ fixtures.valid.verify.forEach(function (f) {
     }
 
     if (f.compressed) {
-      t.true(message.verify(f.message, f.compressed.address, f.compressed.signature, getMessagePrefix(f.network)))
+      t.true(message.verify(f.message, f.compressed.address, f.compressed.signature, getNetworkObject(f.network)))
     }
 
     t.end()
@@ -60,7 +60,7 @@ fixtures.invalid.signature.forEach(function (f) {
 
 fixtures.invalid.verify.forEach(function (f) {
   test(f.description, function (t) {
-    t.false(message.verify(f.message, f.address, f.signature, getMessagePrefix('bitcoin')))
+    t.false(message.verify(f.message, f.address, f.signature, getNetworkObject('bitcoin')))
     t.end()
   })
 })
