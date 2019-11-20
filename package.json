@@ -27,7 +27,7 @@
     "unit": "tape test/*.js"
   },
   "dependencies": {
-    "bitcoinjs-lib": "https://github.com/wlc-/bitcoinjs-lib",
+    "bitcoinjs-lib": "https://github.com/COINiD/bitcoinjs-lib",
     "buffer-equals": "^1.0.3",
     "secp256k1": "^3.0.1",
     "varuint-bitcoin": "^1.0.1"
